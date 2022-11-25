@@ -3,6 +3,7 @@ import { exec } from "node:child_process";
 
 (async function () {
   const session = process.argv[2];
+  const autoPush = process.argv.includes("--push");
 
   const { curriculumPath, coursePath } = JSON.parse(
     await fs.readFile("config.json")
@@ -15,29 +16,13 @@ import { exec } from "node:child_process";
     return;
   }
 
-  const autoPush = process.argv.includes("--push");
-
   const sessionPath = `${coursePath}/sessions/${session}`;
 
   console.log("Pulling latest changes for web-curriculum-new-format...");
 
-  try {
-    await new Promise((resolve, reject) =>
-      exec(
-        [`cd ${curriculumPath}`, `git checkout main`, `git pull`].join(" && "),
-        (error, _stdout) => {
-          if (error) {
-            reject(error);
-            return;
-          }
-          resolve();
-        }
-      )
-    );
-  } catch (error) {
-    console.log(error);
-    return;
-  }
+  await executeList([`git checkout main`, `git pull`], {
+    cwd: process.cwd() + "/" + curriculumPath,
+  });
 
   console.log("Creating new session folder...");
 
@@ -58,7 +43,6 @@ import { exec } from "node:child_process";
         `${sessionPath}/${target}`,
         {
           recursive: true,
-          force: true,
         }
       );
       console.log(`${target} ✅`);
@@ -69,32 +53,38 @@ import { exec } from "node:child_process";
 
   if (autoPush) {
     console.log("Pushing new session to remote...");
-    try {
-      await new Promise((reject, resolve) =>
-        exec(
-          [
-            `cd ${coursePath}`,
-            `git checkout main`,
-            `git pull`,
-            `git switch -c session-${session} || git switch session-${session}`,
-            `git add --all`,
-            `git commit -m 'chore: add session ${session}'`,
-            `git push -u origin session-${session}`,
-            `git checkout main`,
-          ].join(" && "),
-          (error, stdout) => {
-            if (error) {
-              console.error(error);
-              reject(error);
-              return;
-            }
-            console.log("Push successful!");
-            resolve();
-          }
-        )
-      );
-    } catch (error) {
-      console.error(error);
-    }
+    await executeList(
+      [
+        `git checkout main`,
+        `git pull`,
+        `git switch -c session-${session} || git switch session-${session}`,
+        `git add --all`,
+        `git commit -m 'chore: add session ${session}'`,
+        `git push -u origin session-${session}`,
+        `git checkout main`,
+      ],
+      {
+        cwd: process.cwd() + "/" + coursePath,
+      }
+    );
   }
 })();
+
+async function executeList(commands, options = {}) {
+  try {
+    for (const command of commands) {
+      const response = await new Promise((resolve, reject) =>
+        exec(command, options, (error, stdout) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve(stdout);
+        })
+      );
+      response && console.log(response);
+    }
+  } catch (error) {
+    console.error(error);
+  }
+}
