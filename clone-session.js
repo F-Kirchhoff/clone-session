@@ -69,32 +69,34 @@ import { exec } from "node:child_process";
 
   if (autoPush) {
     console.log("Pushing new session to remote...");
-    try {
-      await new Promise((reject, resolve) =>
-        exec(
-          [
-            `cd ${coursePath}`,
-            `git checkout main`,
-            `git pull`,
-            `git switch -c session-${session} || git switch session-${session}`,
-            `git add --all`,
-            `git commit -m 'chore: add session ${session}'`,
-            `git push -u origin session-${session}`,
-            `git checkout main`,
-          ].join(" && "),
-          (error, stdout) => {
-            if (error) {
-              console.error(error);
-              reject(error);
-              return;
-            }
-            console.log("Push successful!");
-            resolve();
-          }
-        )
-      );
-    } catch (error) {
-      console.error(error);
-    }
+    await executeList([
+      `cd ${coursePath}`,
+      `git checkout main`,
+      `git pull`,
+      `git switch -c session-${session} || git switch session-${session}`,
+      `git add --all`,
+      `git commit -m 'chore: add session ${session}'`,
+      `git push -u origin session-${session}`,
+      `git checkout main`,
+    ]);
   }
 })();
+
+async function executeList(commandList) {
+  try {
+    for (const command of commandList) {
+      const response = await new Promise((resolve, reject) =>
+        exec(command, (error, stdout) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve(stdout);
+        })
+      );
+      console.log(response);
+    }
+  } catch (error) {
+    console.log(error);
+  }
+}
